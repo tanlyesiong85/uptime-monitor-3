@@ -29,7 +29,7 @@ jobs:
       - name: Run monitor
         env:
           # Monitor one or more URLs (comma-separated)
-          URLS: "https://crystalwrap.iconcept-staging.com/, https://insken.iconcept-staging.com/"
+          URLS: "https://crystalwrap.iconcept-staging.com/, https://insken.iconcept-staging.com/, https://amtel.iconcept-staging.com/"
           TIMEOUT: "10"
           EXPECT: ""                       # optional regex; leave empty to skip content check
           CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
