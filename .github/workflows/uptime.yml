@@ -2,7 +2,7 @@ name: Uptime checks
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # every 5 minutes
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -15,31 +15,32 @@ jobs:
           python-version: "3.x"
       - run: pip install requests
 
-      # Restore last known state (so we can detect recovery)
+      # Restore the most recent state (latest key that matches the prefix)
       - name: Restore uptime state
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: .uptime_state
-          key: uptime-state-${{ github.ref }}
+          path: uptime_state
+          # This exact key likely won't exist; that's fine.
+          key: uptime-state-${{ github.ref }}-${{ github.run_id }}
           restore-keys: |
+            uptime-state-${{ github.ref }}-
             uptime-state-
 
       - name: Run monitor
         env:
-          # Monitor one or more URLs (comma-separated)
           URLS: "https://crystalwrap.iconcept-staging.com/, https://insken.iconcept-staging.com/"
           TIMEOUT: "10"
-          EXPECT: ""  # optional regex; leave empty to skip content check
+          EXPECT: ""
           CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
           CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
-          STATE_FILE: ".uptime_state/state.json"
+          STATE_FILE: "uptime_state/state.json"
         run: python monitor.py
 
-      # Save updated state for the next run (even if the run failed)
+      # Save a NEW cache entry each run so future runs can restore the latest state
       - name: Save uptime state
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: .uptime_state
-          key: uptime-state-${{ github.ref }}
+          path: uptime_state
+          key: uptime-state-${{ github.ref }}-${{ github.run_id }}
