@@ -15,15 +15,17 @@ jobs:
           python-version: "3.x"
       - run: pip install requests
 
-      # Restore last known state (so we can detect recovery)
-      - name: Restore uptime state
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .uptime_state
-          key: uptime-state-${{ github.run_id }}
-          restore-keys: |
-            uptime-state-
+# Restore last known state
+- name: Restore uptime state
+  id: cache-restore
+  uses: actions/cache/restore@v4
+  with:
+    path: .uptime_state
+    key: uptime-state-${{ github.ref }}
+    restore-keys: |
+      uptime-state-
+
+# ... Run monitor step stays the same ...
 
       - name: Run monitor
         env:
@@ -35,9 +37,10 @@ jobs:
           STATE_FILE: ".uptime_state/state.json"
         run: python monitor.py
 
-      # Save updated state for the next run
-      - name: Save uptime state
-        uses: actions/cache/save@v4
-        with:
-          path: .uptime_state
-          key: uptime-state-${{ github.run_id }}
+# Save updated state (run even if the monitor step failed)
+- name: Save uptime state
+  if: always()
+  uses: actions/cache/save@v4
+  with:
+    path: .uptime_state
+    key: uptime-state-${{ github.ref }}
