@@ -1,0 +1,43 @@
+name: Uptime checks
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"  # every 5 minutes
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install requests
+
+      # Restore last known state (so we can detect recovery)
+      - name: Restore uptime state
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .uptime_state
+          key: uptime-state-${{ github.run_id }}
+          restore-keys: |
+            uptime-state-
+
+      - name: Run monitor
+        env:
+          URLS: "https://insken.iconcept-staging.com/"
+          TIMEOUT: "10"
+          EXPECT: ""
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          STATE_FILE: ".uptime_state/state.json"
+        run: python monitor.py
+
+      # Save updated state for the next run
+      - name: Save uptime state
+        uses: actions/cache/save@v4
+        with:
+          path: .uptime_state
+          key: uptime-state-${{ github.run_id }}
