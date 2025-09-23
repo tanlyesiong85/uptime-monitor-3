@@ -12,9 +12,9 @@ CALLMEBOT_APIKEY = os.getenv("CALLMEBOT_APIKEY", "").strip()
 STATE_FILE = os.getenv("STATE_FILE", ".uptime_state/state.json")
 Path(STATE_FILE).parent.mkdir(parents=True, exist_ok=True)
 
-# Tuning knobs
-FAILURE_THRESHOLD = max(1, int(os.getenv("FAILURE_THRESHOLD", "2")))
-REMIND_MIN        = int(os.getenv("REMIND_MIN", "10"))  # 0 = no reminder while down
+# Tuning knobs (matches your request)
+FAILURE_THRESHOLD = max(1, int(os.getenv("FAILURE_THRESHOLD", "1")))  # alert on first failure
+REMIND_MIN        = int(os.getenv("REMIND_MIN", "10"))                # remind while down every N minutes (0=off)
 
 BROWSER_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -104,12 +104,12 @@ def main():
             entry["ok"] = 0
 
             if entry["status"] != "down":
-                # Transition to DOWN after N consecutive failures
+                # Transition to DOWN after FAILURE_THRESHOLD consecutive failures
                 if entry["fail"] >= FAILURE_THRESHOLD:
                     entry["status"] = "down"
                     entry["last_change"] = now
                     entry["last_down_alert"] = now
-                    down_alerts.append(msg)
+                    down_alerts.append(msg)  # first DOWN alert (immediate if threshold=1)
             else:
                 # Already DOWN: send reminder if enabled and interval passed
                 if REMIND_MIN > 0 and now - entry.get("last_down_alert", 0) >= REMIND_MIN * 60:
