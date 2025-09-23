@@ -29,16 +29,16 @@ jobs:
       - name: Run monitor
         env:
           # Monitor one or more URLs (comma-separated)
-          URLS: "https://crystalwrap.iconcept-staging.com/, https://insken.iconcept-staging.com/, https://amtel.iconcept-staging.com/"
+          URLS: "https://crystalwrap.iconcept-staging.com/, https://insken.iconcept-staging.com/"
           TIMEOUT: "10"
           EXPECT: ""                       # optional regex; leave empty to skip content check
           CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
           CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
           STATE_FILE: ".uptime_state/state.json"
 
-          # --- Tuning knobs ---
-          FAILURE_THRESHOLD: "2"           # alert DOWN after N consecutive failures
-          REMIND_MIN: "10"                 # 🔔 reminder while DOWN every N minutes (0 = disable)
+          # ---- Behavior you asked for ----
+          FAILURE_THRESHOLD: "1"           # 🚨 alert on the FIRST failed check
+          REMIND_MIN: "10"                 # 🔔 while still DOWN, remind every 10 minutes
         run: python monitor.py
 
       # Save updated state (even if the monitor step failed)
