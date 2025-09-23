@@ -2,7 +2,7 @@ name: Uptime checks
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/5 * * * *"   # every 5 minutes
   workflow_dispatch:
 
 jobs:
@@ -15,13 +15,12 @@ jobs:
           python-version: "3.x"
       - run: pip install requests
 
-      # Restore the most recent state (latest key that matches the prefix)
+      # Restore the most recent state (latest key matching the prefix)
       - name: Restore uptime state
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: uptime_state
-          # This exact key likely won't exist; that's fine.
+          path: .uptime_state
           key: uptime-state-${{ github.ref }}-${{ github.run_id }}
           restore-keys: |
             uptime-state-${{ github.ref }}-
@@ -29,18 +28,23 @@ jobs:
 
       - name: Run monitor
         env:
-          URLS: "https://crystalwrap.iconcept-staging.com/, https://insken.iconcept-staging.com/,	https://amtel.iconcept-staging.com/"
+          # Monitor one or more URLs (comma-separated)
+          URLS: "https://crystalwrap.iconcept-staging.com/, https://insken.iconcept-staging.com/"
           TIMEOUT: "10"
-          EXPECT: ""
+          EXPECT: ""                       # optional regex; leave empty to skip content check
           CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
           CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
-          STATE_FILE: "uptime_state/state.json"
+          STATE_FILE: ".uptime_state/state.json"
+
+          # --- Tuning knobs ---
+          FAILURE_THRESHOLD: "2"           # alert DOWN after N consecutive failures
+          REMIND_MIN: "10"                 # 🔔 reminder while DOWN every N minutes (0 = disable)
         run: python monitor.py
 
-      # Save a NEW cache entry each run so future runs can restore the latest state
+      # Save updated state (even if the monitor step failed)
       - name: Save uptime state
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: uptime_state
+          path: .uptime_state
           key: uptime-state-${{ github.ref }}-${{ github.run_id }}
