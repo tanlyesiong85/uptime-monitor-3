@@ -5,6 +5,10 @@ on:
     - cron: "*/5 * * * *"   # every 5 minutes
   workflow_dispatch:
 
+env:
+  # Bump this if you ever want to invalidate all past caches
+  UPTIME_STATE_VERSION: v2
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -15,36 +19,41 @@ jobs:
           python-version: "3.x"
       - run: pip install requests
 
-      # Restore the most recent state (latest key matching the prefix)
+      # Restore the most recent state (latest key that matches the prefix)
       - name: Restore uptime state
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
           path: .uptime_state
-          key: uptime-state-${{ github.ref }}-${{ github.run_id }}
+          key: uptime-state-${{ env.UPTIME_STATE_VERSION }}-${{ github.ref }}-${{ github.run_id }}
           restore-keys: |
-            uptime-state-${{ github.ref }}-
-            uptime-state-
+            uptime-state-${{ env.UPTIME_STATE_VERSION }}-${{ github.ref }}-
+            uptime-state-${{ env.UPTIME_STATE_VERSION }}-
 
       - name: Run monitor
         env:
           # Monitor one or more URLs (comma-separated)
-          URLS: "https://crystalwrap.iconcept-staging.com/, https://insken.iconcept-staging.com/, https://amtel.iconcept-staging.com/"
+          URLS: "https://crystalwrap.iconcept-staging.com/, https://insken.iconcept-staging.com/"
           TIMEOUT: "10"
-          EXPECT: ""                       # optional regex; leave empty to skip content check
+          EXPECT: ""   # optional regex; leave empty to skip content check
+
+          # CallMeBot WhatsApp (add these in repo Settings → Secrets and variables → Actions)
           CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
           CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
-          STATE_FILE: ".uptime_state/state.json"
 
-          # ---- Behavior you asked for ----
-          FAILURE_THRESHOLD: "1"           # 🚨 alert on the FIRST failed check
-          REMIND_MIN: "10"                 # 🔔 while still DOWN, remind every 10 minutes
+          # Stateful settings
+          STATE_FILE: ".uptime_state/state.json"
+          STATE_SCHEMA_VERSION: ${{ env.UPTIME_STATE_VERSION }}
+
+          # Behavior you asked for
+          FAILURE_THRESHOLD: "1"   # alert on FIRST failure
+          REMIND_MIN: "10"         # remind every 10 minutes while still down
         run: python monitor.py
 
-      # Save updated state (even if the monitor step failed)
+      # Save updated state for the next run (even if the run failed)
       - name: Save uptime state
         if: always()
         uses: actions/cache/save@v4
         with:
           path: .uptime_state
-          key: uptime-state-${{ github.ref }}-${{ github.run_id }}
+          key: uptime-state-${{ env.UPTIME_STATE_VERSION }}-${{ github.ref }}-${{ github.run_id }}
