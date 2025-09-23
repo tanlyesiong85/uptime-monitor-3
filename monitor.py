@@ -10,9 +10,10 @@ CALLMEBOT_PHONE  = os.getenv("CALLMEBOT_PHONE", "").strip()
 CALLMEBOT_APIKEY = os.getenv("CALLMEBOT_APIKEY", "").strip()
 
 STATE_FILE = os.getenv("STATE_FILE", ".uptime_state/state.json")
+SCHEMA_VERSION = os.getenv("STATE_SCHEMA_VERSION", "v2")  # must match workflow
 Path(STATE_FILE).parent.mkdir(parents=True, exist_ok=True)
 
-# Tuning knobs (matches your request)
+# Behavior knobs
 FAILURE_THRESHOLD = max(1, int(os.getenv("FAILURE_THRESHOLD", "1")))  # alert on first failure
 REMIND_MIN        = int(os.getenv("REMIND_MIN", "10"))                # remind while down every N minutes (0=off)
 
@@ -28,7 +29,7 @@ def check_url(u: str):
     try:
         r = requests.get(
             u, timeout=TIMEOUT, allow_redirects=True,
-            headers={"User-Agent": BROWSER_UA, "Accept": "text/html,application/xhtml+xml"}
+            headers={"User-Agent": BROWSER_UA, "Accept":"text/html,application/xhtml+xml"}
         )
         if r.status_code >= 400:
             return False, f"{u} returned {r.status_code}"
@@ -55,21 +56,26 @@ def notify_callmebot(text: str):
 def load_state():
     try:
         with open(STATE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        if data.get("_schema") != SCHEMA_VERSION:
+            print("State schema mismatch; ignoring old state.", flush=True)
+            return {}
+        return data.get("urls", {})
     except Exception:
         return {}
 
 def save_state(state: dict):
+    payload = {"_schema": SCHEMA_VERSION, "saved_at": int(time.time()), "urls": state}
     with open(STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump(state, f)
+        json.dump(payload, f)
 
 def empty_entry():
     return {
-        "status": "up",               # "up" | "down"
-        "fail": 0,                    # consecutive failures
-        "ok": 0,                      # consecutive successes
-        "last_change": 0,             # epoch when status last changed
-        "last_down_alert": 0          # epoch when last DOWN alert/reminder sent
+        "status": "up",        # "up" | "down"
+        "fail": 0,             # consecutive failures
+        "ok": 0,               # consecutive successes
+        "last_change": 0,      # epoch when status last changed
+        "last_down_alert": 0   # epoch when last DOWN alert/reminder sent
     }
 
 # ---------- Main ----------
@@ -88,13 +94,11 @@ def main():
     for u in URLS:
         entry = prev.get(u, empty_entry())
         ok, msg = check_url(u)
-        print(msg, flush=True)
+        print(f"[{u}] prev={entry} -> check='{msg}'", flush=True)
 
         if ok:
             entry["ok"] += 1
             entry["fail"] = 0
-
-            # Recovery only if previously DOWN
             if entry["status"] == "down":
                 entry["status"] = "up"
                 entry["last_change"] = now
@@ -102,34 +106,28 @@ def main():
         else:
             entry["fail"] += 1
             entry["ok"] = 0
-
             if entry["status"] != "down":
-                # Transition to DOWN after FAILURE_THRESHOLD consecutive failures
                 if entry["fail"] >= FAILURE_THRESHOLD:
                     entry["status"] = "down"
                     entry["last_change"] = now
                     entry["last_down_alert"] = now
-                    down_alerts.append(msg)  # first DOWN alert (immediate if threshold=1)
+                    down_alerts.append(msg)  # immediate DOWN alert
             else:
-                # Already DOWN: send reminder if enabled and interval passed
                 if REMIND_MIN > 0 and now - entry.get("last_down_alert", 0) >= REMIND_MIN * 60:
                     entry["last_down_alert"] = now
                     down_alerts.append(msg + " (still down)")
 
         curr[u] = entry
+        print(f"[{u}] curr={entry}", flush=True)
 
-    # Send notifications
     if down_alerts:
         notify_callmebot("⚠️ Uptime alert:\n" + "\n".join(down_alerts))
     if recover_alerts:
         notify_callmebot("✅ Recovery:\n" + "\n".join(recover_alerts))
 
-    # Persist state BEFORE exiting
     save_state(curr)
 
-    # Keep job red if any URL is currently DOWN
-    any_down = any(e["status"] == "down" for e in curr.values())
-    if any_down:
+    if any(e["status"] == "down" for e in curr.values()):
         raise SystemExit(1)
 
     print("All checks passed ✅", flush=True)
