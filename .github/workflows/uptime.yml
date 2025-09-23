@@ -1,4 +1,5 @@
 name: Uptime checks
+
 on:
   schedule:
     - cron: "*/5 * * * *"  # every 5 minutes
@@ -14,25 +15,15 @@ jobs:
           python-version: "3.x"
       - run: pip install requests
 
-      # Restore last known state
+      # Restore last known state (so we can detect recovery)
       - name: Restore uptime state
-          id: cache-restore
-          uses: actions/cache/restore@v4
-          with:
-            path: .uptime_state
-            key: uptime-state-${{ github.ref }}
-            restore-keys: |
-              uptime-state-
-
-# ... Run monitor step stays the same ...
-
-# Save updated state (run even if the monitor step failed)
-- name: Save uptime state
-  if: always()
-  uses: actions/cache/save@v4
-  with:
-    path: .uptime_state
-    key: uptime-state-${{ github.ref }}
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .uptime_state
+          key: uptime-state-${{ github.run_id }}
+          restore-keys: |
+            uptime-state-
 
       - name: Run monitor
         env:
